@@ -1,8 +1,8 @@
 """
 GetKin MCP Gateway
 ====================
-A proper MCP server exposing all GetKin services as tools.
-One entry point for agents, one listing on directories, four services behind it.
+Agent infrastructure MCP server. Six tools, one resource, one prompt.
+Optimized for MCP best practices and Smithery quality scoring.
 """
 
 import os
@@ -12,11 +12,12 @@ from typing import Annotated, Optional
 import httpx
 from dotenv import load_dotenv
 from fastmcp import FastMCP
+from fastmcp.prompts import Message
 
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Service URLs
+# Service URLs (configurable)
 # ---------------------------------------------------------------------------
 ORACLE_URL = os.getenv("ORACLE_URL", "https://getkin-api.fly.dev")
 MONITOR_URL = os.getenv("MONITOR_URL", "https://getkin-monitor.fly.dev")
@@ -29,18 +30,11 @@ MEMORY_URL = os.getenv("MEMORY_URL", "https://getkin-memory.fly.dev")
 mcp = FastMCP(
     name="GetKin",
     instructions=(
-        "GetKin provides agent infrastructure services: model recommendations, "
-        "availability monitoring, LLM routing, and memory compression. "
-        "All services are agent-native and built for autonomous operation. "
-        "The recommend_model and list_models tools are FREE. Other tools "
-        "accept x402 payments via Solana USDC."
-    ),
-    description=(
-        "Agent infrastructure that runs itself. Six tools for autonomous agents: "
-        "free LLM model recommendations across 17 models and 6 providers, "
-        "real-time provider availability monitoring, LLM routing proxy, "
-        "and stateless memory compression. Paid services via x402 on Solana USDC. "
-        "Homepage: https://getkin.io"
+        "GetKin is agent infrastructure that runs itself. "
+        "Six tools for autonomous agents: free LLM model recommendations "
+        "across 17 models and 6 providers, real-time provider availability "
+        "monitoring, LLM routing proxy, and stateless memory compression. "
+        "Paid services via x402 on Solana USDC. Homepage: https://getkin.io"
     ),
 )
 
@@ -55,6 +49,13 @@ mcp = FastMCP(
         "DeepSeek, and Meta. Returns the top recommendation plus 3 alternatives with "
         "estimated cost, latency, and quality scores. FREE — no payment required."
     ),
+    annotations={
+        "title": "Model Recommendation",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
 )
 async def recommend_model(
     task: Annotated[str, "Task type to optimize for. Options: code-generation, summarization, translation, creative-writing, data-analysis, classification, conversation, reasoning, extraction, general"],
@@ -81,6 +82,13 @@ async def recommend_model(
         "Use this before making an API call to avoid wasting tokens on a down service. "
         "Costs $0.005 USDC via x402 on Solana."
     ),
+    annotations={
+        "title": "Availability Monitor",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
 )
 async def check_availability(
     provider: Annotated[str, "Provider to check. Options: anthropic, openai, google, mistral, deepseek, meta, all. Use 'all' to get status for every monitored provider."] = "all",
@@ -107,6 +115,13 @@ async def check_availability(
         "gemini-3-flash-preview, gemini-3.1-pro-preview. "
         "Costs provider rate + 3% margin via x402 on Solana USDC."
     ),
+    annotations={
+        "title": "LLM Routing Proxy",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
 )
 async def route_llm_call(
     model: Annotated[str, "Model ID to route to. Available: gemini-2.5-flash, gemini-2.5-flash-lite, gemini-3-flash-preview, gemini-3.1-pro-preview"],
@@ -142,6 +157,13 @@ async def route_llm_call(
         "appropriate time tier. First 5 compressions per agent are free, then $0.03 "
         "USDC via x402 on Solana."
     ),
+    annotations={
+        "title": "Memory Compression",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
 )
 async def compress_memory(
     agent_id: Annotated[str, "Your unique agent identifier. Used only for free tier tracking — we hash it and never store the original."],
@@ -177,6 +199,13 @@ async def compress_memory(
         "output cost per 1K tokens, and the proxy margin percentage. "
         "FREE — no payment required."
     ),
+    annotations={
+        "title": "List Models",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
 )
 async def list_models() -> dict:
     """List all models available through GetKin with current pricing. FREE."""
@@ -195,6 +224,13 @@ async def list_models() -> dict:
         "whether the agent is still on the free tier, and the price after the "
         "free tier is exhausted. FREE — no payment required."
     ),
+    annotations={
+        "title": "Check Memory Usage",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
 )
 async def check_memory_usage(
     agent_id: Annotated[str, "The unique agent identifier to check free tier usage for."],
@@ -229,6 +265,32 @@ async def getkin_status() -> str:
                 status[name] = {"status": "unreachable", "url": url}
 
     return json.dumps(status, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# Prompt: Agent Setup Guide
+# ---------------------------------------------------------------------------
+@mcp.prompt()
+def agent_setup_guide(
+    use_case: Annotated[str, "What the agent will be doing — e.g. code-generation, research, customer-support, data-analysis"],
+) -> list[Message]:
+    """Guide an agent through selecting the right GetKin tools for their use case."""
+    return [
+        Message(
+            role="user",
+            content=(
+                f"I'm setting up an autonomous agent for {use_case}. "
+                "Help me choose which GetKin tools to use and in what order. "
+                "Available tools: recommend_model (free, picks the best LLM for a task), "
+                "check_availability (checks if a provider API is up), "
+                "route_llm_call (routes LLM calls through a proxy with cost tracking), "
+                "compress_memory (compresses session data into structured memory, first 5 free), "
+                "list_models (lists available models with pricing), "
+                "check_memory_usage (checks free tier status). "
+                "Suggest the optimal workflow for my use case."
+            ),
+        ),
+    ]
 
 
 # ---------------------------------------------------------------------------
