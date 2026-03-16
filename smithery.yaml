@@ -1,0 +1,32 @@
+startCommand:
+  type: http
+  configSchema:
+    type: object
+    properties:
+      oracle_url:
+        type: string
+        default: "https://getkin-api.fly.dev"
+        description: "URL for the GetKin Model Oracle service"
+      monitor_url:
+        type: string
+        default: "https://getkin-monitor.fly.dev"
+        description: "URL for the GetKin Availability Monitor service"
+      proxy_url:
+        type: string
+        default: "https://getkin-proxy.fly.dev"
+        description: "URL for the GetKin Routing Proxy service"
+      memory_url:
+        type: string
+        default: "https://getkin-memory.fly.dev"
+        description: "URL for the GetKin Memory Compression service"
+  commandFunction: |-
+    (config) => ({
+      command: "python",
+      args: ["server.py"],
+      env: {
+        ORACLE_URL: config.oracle_url || "https://getkin-api.fly.dev",
+        MONITOR_URL: config.monitor_url || "https://getkin-monitor.fly.dev",
+        PROXY_URL: config.proxy_url || "https://getkin-proxy.fly.dev",
+        MEMORY_URL: config.memory_url || "https://getkin-memory.fly.dev"
+      }
+    })
